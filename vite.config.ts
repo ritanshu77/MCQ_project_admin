@@ -6,6 +6,9 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   return {
     plugins: [react()],
+    define: {
+      'import.meta.env.API_BASE_URL': JSON.stringify(env.API_BASE_URL)
+    },
     base: '/admin',
     server: {
       port: 3003,
