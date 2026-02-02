@@ -12,15 +12,14 @@ services:
   # This is a placeholder for your backend service
   # You should point this to your actual backend Docker image or build context
   backend:
-    # build: ../exam-client-panal/exam-backend-api
-    image: node:20-alpine # Placeholder
+    build: ../exam-client-panal/exam-backend-api
     env_file:
       - .env
     environment:
-      - PORT=${PORT:-3001}
+      - PORT=3003
       - JWT_SECRET=${JWT_SECRET}
       - MONGODB_URI=${MONGODB_URI}
       - MONGODB_DB_NAME=${MONGODB_DB_NAME}
       - NODE_ENV=${NODE_ENV}
     ports:
-      - "${PORT:-3001}:${PORT:-3001}"
+      - "3003:3003"
