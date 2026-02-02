@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  admin-panel:
+    build: .
+    ports:
+      - "3003:80"
+    restart: always
+    depends_on:
+      - backend
+
+  # This is a placeholder for your backend service
+  # You should point this to your actual backend Docker image or build context
+  backend:
+    # build: ../exam-client-panal/exam-backend-api
+    image: node:20-alpine # Placeholder
+    env_file:
+      - .env
+    environment:
+      - PORT=${PORT:-3001}
+      - JWT_SECRET=${JWT_SECRET}
+      - MONGODB_URI=${MONGODB_URI}
+      - MONGODB_DB_NAME=${MONGODB_DB_NAME}
+      - NODE_ENV=${NODE_ENV}
+    ports:
+      - "${PORT:-3001}:${PORT:-3001}"
