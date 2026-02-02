@@ -326,6 +326,29 @@ const FeedbackList = () => {
 }
 
 const App = () => {
+  // Keep-alive mechanism: Hit backend /health endpoint every 14 minutes
+  // This prevents Render free tier from spinning down due to inactivity
+  useEffect(() => {
+    const keepAlive = () => {
+      // Use /health endpoint which is designed for this purpose
+      axios.get(`${API_BASE_URL}/health`)
+        .then(() => console.log('Keep-alive ping successful'))
+        .catch((err) => {
+          console.error('Keep-alive ping failed:', err);
+          // Ignore errors for background ping
+        });
+    };
+
+    // Initial call
+    keepAlive();
+
+    // Schedule every 14 minutes (14 * 60 * 1000)
+    // Render spins down after 15 mins of inactivity
+    const interval = setInterval(keepAlive, 14 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <BrowserRouter basename="/admin">
       <Toaster position="top-right" />
