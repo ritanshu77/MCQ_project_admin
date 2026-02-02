@@ -14,8 +14,7 @@ dist-ssr
 *.local
 
 # Editor directories and files
-.vscode/*
-!.vscode/extensions.json
+.vscode
 .idea
 .DS_Store
 *.suo
@@ -28,3 +27,17 @@ dist-ssr
 .env
 .env.test
 .env.production
+.env.*
+!.env.example
+
+# Security
+*.pem
+*.key
+*.cert
+*.crt
+*.pfx
+*.p12
+*.secret
+id_rsa
+id_rsa.pub
+known_hosts
