@@ -19,6 +19,7 @@ export default defineConfig({
   preview: {
     port: 3003,
     host: true,
+    allowedHosts: ['mcq-project-admin.onrender.com'],
     proxy: {
       '/api': {
         target: 'http://localhost:3001',
