@@ -1,65 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { Plus, Edit, Trash2, Search, X, Save, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Edit, Trash2, Search } from 'lucide-react';
 import { API_BASE_URL } from '../config';
-import QuestionForm from '../components/QuestionForm';
-
-interface BilingualText {
-  en: string;
-  hi: string;
-}
-
-interface Option {
-  text: BilingualText;
-  key: string; // 'A', 'B', 'C', 'D', 'E'
-}
-
-interface Question {
-  _id: string;
-  questionText: BilingualText;
-  options: Option[];
-  correctOptionKey: string;
-  explanation?: BilingualText;
-  subjectId?: string;
-  unitId?: string;
-  chapterId?: string;
-  subjectName?: string;
-  unitName?: string;
-  chapterName?: string;
-  difficulty: string;
-  questionNumber: number;
-  status: string;
-}
-
-interface Subject {
-  subjectId: string;
-  nameEn: string;
-  nameHi: string;
-}
-
-interface Unit {
-  unitId: string;
-  name: BilingualText;
-  chapters: Chapter[];
-}
-
-interface Chapter {
-  _id: string;
-  name: BilingualText;
-}
-
-
+import QuestionEditModal from '../components/QuestionEditModal';
+import { Question } from '../types';
 
 const Questions = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
 
   // Data States
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
-
   
   // Pagination & Filter States
   const [page, setPage] = useState(1);
@@ -67,10 +20,9 @@ const Questions = () => {
   const [search, setSearch] = useState('');
   const [difficultyFilter, setDifficultyFilter] = useState('all');
 
-  // Modal & Form States
+  // Modal State
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-
 
   // Fetch Questions
   const fetchQuestions = async () => {
@@ -93,8 +45,6 @@ const Questions = () => {
     }
   };
 
-
-
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       fetchQuestions();
@@ -102,24 +52,27 @@ const Questions = () => {
     return () => clearTimeout(delayDebounceFn);
   }, [page, search, difficultyFilter]);
 
-
-
-  /* 
-  // Legacy URL handling removed in favor of direct navigation
+  // URL editId handler
   useEffect(() => {
     const editId = searchParams.get('editId');
-    // ...
-  }, [searchParams, questions, showModal]); 
-  */
-
-
+    if (editId && !showModal) {
+      setEditingId(editId);
+      setShowModal(true);
+    }
+  }, [searchParams, showModal]);
 
   // Handlers
   const closeModal = () => {
     setShowModal(false);
+    setEditingId(null);
     const newParams = new URLSearchParams(searchParams);
     newParams.delete('editId');
     setSearchParams(newParams);
+  };
+
+  const handleSaveSuccess = () => {
+    fetchQuestions();
+    closeModal();
   };
 
   const handleDelete = async (id: string) => {
@@ -135,15 +88,14 @@ const Questions = () => {
   };
 
   const handleEdit = (q: Question) => {
-    navigate(`/questions/edit/${q._id}`);
+    setEditingId(q._id);
+    setShowModal(true);
   };
 
   const handleAddNew = () => {
     setEditingId(null);
     setShowModal(true);
   };
-
-
 
   return (
     <div className="questions-page">
@@ -240,35 +192,12 @@ const Questions = () => {
         )}
       </div>
 
-      {/* Add/Edit Modal */}
-      {showModal && (
-        <div className="modal-overlay" style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000
-        }}>
-          <div className="modal-content" style={{
-            background: 'white', width: '90%', maxWidth: '800px', maxHeight: '90vh',
-            borderRadius: '8px', display: 'flex', flexDirection: 'column'
-          }}>
-            <div className="modal-header" style={{ padding: '15px 20px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0 }}>{editingId ? 'Edit Question' : 'Add New Question'}</h3>
-              <button onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                <X size={24} />
-              </button>
-            </div>
-            
-            <div className="modal-body" style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
-              <QuestionForm 
-                questionId={editingId || undefined}
-                initialData={editingId ? questions.find(q => q._id === editingId) : undefined}
-                onSuccess={() => { closeModal(); fetchQuestions(); }}
-                onCancel={closeModal}
-                isModal={true}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      <QuestionEditModal 
+        isOpen={showModal}
+        onClose={closeModal}
+        questionId={editingId}
+        onSaveSuccess={handleSaveSuccess}
+      />
 
       <style>{`
         .btn-icon { background: none; border: none; cursor: pointer; padding: 5px; border-radius: 4px; transition: background 0.2s; }
@@ -277,19 +206,6 @@ const Questions = () => {
         .badge-easy { background: #e8f5e9; color: #2ecc71; }
         .badge-medium { background: #fff3e0; color: #f39c12; }
         .badge-hard { background: #ffebee; color: #e74c3c; }
-        textarea, input[type="text"], select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
-        .form-group label { display: block; margin-bottom: 5px; font-weight: 500; font-size: 0.9rem; }
-        
-        /* Grid Layouts */
-        .grid-2-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .grid-3-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
-        .flex-row-responsive { display: flex; align-items: center; gap: 10px; }
-        
-        @media (max-width: 768px) {
-          .grid-2-cols, .grid-3-cols { grid-template-columns: 1fr; }
-          .flex-row-responsive { flex-direction: column; align-items: stretch; }
-          .modal-content { width: 95%; height: 95vh; }
-        }
       `}</style>
     </div>
   );
