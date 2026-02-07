@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { Plus, Edit, Trash2, Search, X, Save, ChevronDown, ChevronRight } from 'lucide-react';
 import { API_BASE_URL } from '../config';
+import QuestionForm from '../components/QuestionForm';
 
 interface BilingualText {
   en: string;
@@ -49,32 +50,16 @@ interface Chapter {
   name: BilingualText;
 }
 
-const initialFormState = {
-  questionNumber: 1,
-  questionText: { en: '', hi: '' },
-  options: [
-    { text: { en: '', hi: '' }, key: 'A' },
-    { text: { en: '', hi: '' }, key: 'B' },
-    { text: { en: '', hi: '' }, key: 'C' },
-    { text: { en: '', hi: '' }, key: 'D' },
-  ],
-  correctOptionKey: 'A',
-  explanation: { en: '', hi: '' },
-  subjectId: '',
-  unitId: '',
-  chapterId: '',
-  difficulty: 'medium',
-  status: 'active'
-};
+
 
 const Questions = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   // Data States
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [units, setUnits] = useState<Unit[]>([]);
+
   
   // Pagination & Filter States
   const [page, setPage] = useState(1);
@@ -85,8 +70,7 @@ const Questions = () => {
   // Modal & Form States
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState(initialFormState);
-  const [formLoading, setFormLoading] = useState(false);
+
 
   // Fetch Questions
   const fetchQuestions = async () => {
@@ -109,15 +93,7 @@ const Questions = () => {
     }
   };
 
-  // Fetch Subjects (for Form)
-  const fetchSubjects = async () => {
-    try {
-      const res = await axios.get(`${API_BASE_URL}/questions/subjects/list`);
-      setSubjects(res.data.subjects);
-    } catch (err) {
-      console.error('Error fetching subjects:', err);
-    }
-  };
+
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
@@ -126,53 +102,17 @@ const Questions = () => {
     return () => clearTimeout(delayDebounceFn);
   }, [page, search, difficultyFilter]);
 
-  useEffect(() => {
-    fetchSubjects();
-  }, []);
 
+
+  /* 
+  // Legacy URL handling removed in favor of direct navigation
   useEffect(() => {
     const editId = searchParams.get('editId');
-    if (editId && !showModal) {
-      const loadQuestion = async () => {
-        const existing = questions.find(q => q._id === editId);
-        if (existing) {
-          handleEdit(existing);
-          return;
-        }
-        try {
-          const res = await axios.get(`${API_BASE_URL}/questions/${editId}`);
-          const q = res.data.question || res.data;
-          handleEdit(q);
-        } catch (err) {
-          console.error("Failed to load question from URL", err);
-        }
-      };
-      loadQuestion();
-    }
-  }, [searchParams, questions, showModal]);
+    // ...
+  }, [searchParams, questions, showModal]); 
+  */
 
-  // Fetch Units when Subject changes
-  useEffect(() => {
-    if (formData.subjectId) {
-      fetchUnits(formData.subjectId);
-    } else {
-      setUnits([]);
-    }
-  }, [formData.subjectId]);
 
-  const fetchUnits = async (subjectId: string) => {
-    try {
-      console.log('Fetching units for subject:', subjectId);
-      const res = await axios.post(`${API_BASE_URL}/questions/subjects/units`, { subjectId });
-      console.log('Units fetched:', res.data.units?.length);
-      if (res.data.units?.length > 0) {
-        console.log('First unit ID:', res.data.units[0].unitId);
-      }
-      setUnits(res.data.units || []);
-    } catch (err) {
-      console.error('Error fetching units:', err);
-    }
-  };
 
   // Handlers
   const closeModal = () => {
@@ -195,89 +135,15 @@ const Questions = () => {
   };
 
   const handleEdit = (q: Question) => {
-    setEditingId(q._id);
-    
-    // Helper to extract ID if field is populated object
-    const getid = (val: any) => {
-      if (!val) return '';
-      if (typeof val === 'object') {
-        const id = val._id || val.unitId || val.subjectId || val.id;
-        return id ? String(id) : '';
-      }
-      return String(val);
-    };
-
-    console.log('Editing Question:', q._id);
-    console.log('Raw UnitId:', q.unitId);
-    console.log('Processed UnitId:', getid(q.unitId));
-
-    setFormData({
-      questionNumber: q.questionNumber || 1,
-      questionText: q.questionText || { en: '', hi: '' },
-      options: q.options || initialFormState.options,
-      correctOptionKey: q.correctOptionKey || 'A',
-      explanation: q.explanation || { en: '', hi: '' },
-      subjectId: getid(q.subjectId) || '',
-      unitId: getid(q.unitId) || '',
-      chapterId: getid(q.chapterId) || '',
-      difficulty: q.difficulty || 'medium',
-      status: q.status || 'active'
-    });
-    setShowModal(true);
+    navigate(`/questions/edit/${q._id}`);
   };
 
   const handleAddNew = () => {
     setEditingId(null);
-    setFormData(initialFormState);
     setShowModal(true);
   };
 
-  const handleSave = async () => {
-    try {
-      setFormLoading(true);
-      // Basic Validation
-      if (!formData.questionText.en && !formData.questionText.hi) {
-        toast.error('Question text is required (English or Hindi)');
-        setFormLoading(false);
-        return;
-      }
-      if (!formData.subjectId) {
-        toast.error('Subject is required');
-        setFormLoading(false);
-        return;
-      }
 
-      // Clean payload: remove empty strings for IDs
-      const payload: any = { ...formData };
-      if (!payload.unitId) delete payload.unitId;
-      if (!payload.chapterId) delete payload.chapterId;
-      
-      // Ensure options key match
-      // (The form UI forces A-D/E so this is likely safe, but good to be aware)
-
-      if (editingId) {
-        await axios.patch(`${API_BASE_URL}/questions/${editingId}`, payload);
-        toast.success('Question updated successfully');
-      } else {
-        await axios.post(`${API_BASE_URL}/questions`, payload);
-        toast.success('Question created successfully');
-      }
-      
-      closeModal();
-      fetchQuestions();
-    } catch (err: any) {
-      console.error('Error saving question:', err);
-      toast.error(err.response?.data?.message || 'Failed to save question');
-    } finally {
-      setFormLoading(false);
-    }
-  };
-
-  // Helper to get available chapters based on selected unit
-  const getAvailableChapters = () => {
-    const selectedUnit = units.find(u => u.unitId === formData.unitId);
-    return selectedUnit ? selectedUnit.chapters : [];
-  };
 
   return (
     <div className="questions-page">
@@ -392,162 +258,13 @@ const Questions = () => {
             </div>
             
             <div className="modal-body" style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
-              <div className="form-group" style={{ marginBottom: '15px' }}>
-                <label>Question Number</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={formData.questionNumber}
-                  onChange={e => setFormData({ ...formData, questionNumber: parseInt(e.target.value) || 1 })}
-                  style={{ width: '100px' }}
-                />
-              </div>
-
-              {/* Question Text */}
-              <div className="form-group" style={{ marginBottom: '15px' }}>
-                <label>Question Text</label>
-                <div className="grid-2-cols">
-                  <textarea 
-                    placeholder="English" 
-                    value={formData.questionText.en} 
-                    onChange={e => setFormData({...formData, questionText: {...formData.questionText, en: e.target.value}})}
-                    rows={3}
-                  />
-                  <textarea 
-                    placeholder="Hindi" 
-                    value={formData.questionText.hi} 
-                    onChange={e => setFormData({...formData, questionText: {...formData.questionText, hi: e.target.value}})}
-                    rows={3}
-                  />
-                </div>
-              </div>
-
-              {/* Options */}
-              <div className="form-group" style={{ marginBottom: '15px' }}>
-                <label>Options</label>
-                {formData.options.map((opt, idx) => (
-                  <div key={idx} className="flex-row-responsive" style={{ marginBottom: '10px' }}>
-                    <div style={{ width: '30px', fontWeight: 'bold' }}>{opt.key}</div>
-                    <input 
-                      type="text" placeholder="Option (En)" 
-                      value={opt.text.en}
-                      onChange={e => {
-                        const newOpts = [...formData.options];
-                        newOpts[idx].text.en = e.target.value;
-                        setFormData({...formData, options: newOpts});
-                      }}
-                      style={{ flex: 1 }}
-                    />
-                    <input 
-                      type="text" placeholder="Option (Hi)" 
-                      value={opt.text.hi}
-                      onChange={e => {
-                        const newOpts = [...formData.options];
-                        newOpts[idx].text.hi = e.target.value;
-                        setFormData({...formData, options: newOpts});
-                      }}
-                      style={{ flex: 1 }}
-                    />
-                    <input 
-                      type="radio" 
-                      name="correctOption"
-                      checked={formData.correctOptionKey === opt.key}
-                      onChange={() => setFormData({...formData, correctOptionKey: opt.key})}
-                    />
-                  </div>
-                ))}
-              </div>
-
-              {/* Classification */}
-              <div className="form-group" style={{ marginBottom: '15px' }}>
-                <label>Classification</label>
-                <div className="grid-3-cols">
-                  <select 
-                    value={formData.subjectId} 
-                    onChange={e => setFormData({...formData, subjectId: e.target.value, unitId: '', chapterId: ''})}
-                  >
-                    <option value="">Select Subject</option>
-                    {subjects.map(s => <option key={s.subjectId} value={s.subjectId}>{s.nameEn}</option>)}
-                  </select>
-                  
-                  <select 
-                    value={formData.unitId} 
-                    onChange={e => setFormData({...formData, unitId: e.target.value, chapterId: ''})}
-                    disabled={!formData.subjectId}
-                  >
-                    <option value="">Select Unit</option>
-                    {units.map(u => <option key={u.unitId} value={u.unitId}>{u.name?.en || 'Unit'}</option>)}
-                  </select>
-
-                  <select 
-                    value={formData.chapterId} 
-                    onChange={e => setFormData({...formData, chapterId: e.target.value})}
-                    disabled={!formData.unitId}
-                  >
-                    <option value="">Select Chapter</option>
-                    {getAvailableChapters().map(c => <option key={c._id} value={c._id}>{c.name?.en || 'Chapter'}</option>)}
-                    
-                    {/* Preserved option for broken/missing chapter links */}
-                    {formData.chapterId && !getAvailableChapters().find(c => c._id === formData.chapterId) && (
-                      <option value={formData.chapterId}>
-                         {questions.find(q => q._id === editingId)?.chapterName || 'Unknown Chapter (Preserved)'} *
-                      </option>
-                    )}
-                  </select>
-                </div>
-              </div>
-
-              {/* Explanation & Difficulty */}
-              <div className="form-group" style={{ marginBottom: '15px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
-                  <div>
-                    <label>Explanation</label>
-                    <textarea 
-                      placeholder="Explanation (English)" 
-                      value={formData.explanation.en}
-                      onChange={e => setFormData({...formData, explanation: {...formData.explanation, en: e.target.value}})}
-                      rows={2}
-                      style={{ width: '100%', marginBottom: '5px' }}
-                    />
-                    <textarea 
-                      placeholder="Explanation (Hindi)" 
-                      value={formData.explanation.hi}
-                      onChange={e => setFormData({...formData, explanation: {...formData.explanation, hi: e.target.value}})}
-                      rows={2}
-                      style={{ width: '100%' }}
-                    />
-                  </div>
-                  <div>
-                    <label>Difficulty</label>
-                    <select 
-                      value={formData.difficulty} 
-                      onChange={e => setFormData({...formData, difficulty: e.target.value})}
-                      style={{ width: '100%', padding: '8px' }}
-                    >
-                      <option value="easy">Easy</option>
-                      <option value="medium">Medium</option>
-                      <option value="hard">Hard</option>
-                    </select>
-                    
-                    <label style={{ marginTop: '10px', display: 'block' }}>Status</label>
-                    <select 
-                      value={formData.status} 
-                      onChange={e => setFormData({...formData, status: e.target.value})}
-                      style={{ width: '100%', padding: '8px' }}
-                    >
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="modal-footer" style={{ padding: '15px 20px', borderTop: '1px solid #eee', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button className="btn" onClick={closeModal} disabled={formLoading}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={formLoading}>
-                {formLoading ? 'Saving...' : 'Save Question'}
-              </button>
+              <QuestionForm 
+                questionId={editingId || undefined}
+                initialData={editingId ? questions.find(q => q._id === editingId) : undefined}
+                onSuccess={() => { closeModal(); fetchQuestions(); }}
+                onCancel={closeModal}
+                isModal={true}
+              />
             </div>
           </div>
         </div>

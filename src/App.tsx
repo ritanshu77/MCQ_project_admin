@@ -6,6 +6,7 @@ import { Toaster, toast } from 'react-hot-toast'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Questions from './pages/Questions'
+import QuestionEditPage from './pages/QuestionEditPage'
 import Users from './pages/Users'
 import { API_BASE_URL } from './config'
 
@@ -225,6 +226,14 @@ interface Feedback {
 const FeedbackList = () => {
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([])
   const [loading, setLoading] = useState(true)
+  
+  // Filter States
+  const [filters, setFilters] = useState({
+    userName: '',
+    questionText: '',
+    feedbackText: '',
+    status: 'pending' // Default as requested
+  })
 
   const fetchFeedback = async () => {
     try {
@@ -246,11 +255,38 @@ const FeedbackList = () => {
     try {
       await axios.patch(`${API_BASE_URL}/feedback/${id}/status`, { status })
       setFeedbacks(prev => prev.map(f => f._id === id ? { ...f, status: status as any } : f))
+      toast.success(`Status updated to ${status}`)
     } catch (err) {
       console.error('Error updating status:', err)
       toast.error('Failed to update status')
     }
   }
+
+  // Filter and Sort Logic
+  const filteredFeedbacks = feedbacks
+    .filter(fb => {
+      // Status Filter
+      if (filters.status && filters.status !== 'all' && fb.status !== filters.status) return false;
+
+      // User Name Filter
+      const userName = fb.userId?.name || fb.userId?.gmail || (typeof fb.userId === 'string' ? fb.userId : '');
+      if (filters.userName && !userName.toLowerCase().includes(filters.userName.toLowerCase())) return false;
+
+      // Question Text Filter (En & Hi)
+      const qEn = fb.questionId?.questionText?.en || '';
+      const qHi = fb.questionId?.questionText?.hi || '';
+      if (filters.questionText && 
+          !qEn.toLowerCase().includes(filters.questionText.toLowerCase()) && 
+          !qHi.toLowerCase().includes(filters.questionText.toLowerCase())) {
+        return false;
+      }
+
+      // Feedback Text Filter
+      if (filters.feedbackText && !fb.feedback.toLowerCase().includes(filters.feedbackText.toLowerCase())) return false;
+
+      return true;
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); // Latest first
 
   return (
     <div>
@@ -258,12 +294,63 @@ const FeedbackList = () => {
         <h2>User Feedback</h2>
         <button className="btn btn-primary" onClick={() => { fetchFeedback(); toast.success('Refreshed!'); }}>Refresh</button>
       </div>
+
+      {/* Filters Section */}
+      <div className="card" style={{ marginBottom: '20px', padding: '15px' }}>
+        <h4 style={{ marginBottom: '10px', marginTop: 0 }}>Filters</h4>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: '5px' }}>Status</label>
+            <select 
+              value={filters.status} 
+              onChange={e => setFilters({ ...filters, status: e.target.value })}
+              style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
+            >
+              <option value="all">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="reviewed">Reviewed</option>
+              <option value="resolved">Resolved</option>
+              <option value="ignored">Ignored</option>
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: '5px' }}>User Name</label>
+            <input 
+              type="text" 
+              placeholder="Search User..." 
+              value={filters.userName}
+              onChange={e => setFilters({ ...filters, userName: e.target.value })}
+              style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: '5px' }}>Question Text</label>
+            <input 
+              type="text" 
+              placeholder="Search Question (En/Hi)..." 
+              value={filters.questionText}
+              onChange={e => setFilters({ ...filters, questionText: e.target.value })}
+              style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: '5px' }}>Feedback Content</label>
+            <input 
+              type="text" 
+              placeholder="Search Feedback..." 
+              value={filters.feedbackText}
+              onChange={e => setFilters({ ...filters, feedbackText: e.target.value })}
+              style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
+            />
+          </div>
+        </div>
+      </div>
       
       <div className="card">
         {loading ? (
           <p>Loading feedback...</p>
-        ) : feedbacks.length === 0 ? (
-          <p>No feedback found.</p>
+        ) : filteredFeedbacks.length === 0 ? (
+          <p>No feedback found matching criteria.</p>
         ) : (
           <table className="table">
             <thead>
@@ -277,7 +364,7 @@ const FeedbackList = () => {
               </tr>
             </thead>
             <tbody>
-              {feedbacks.map((fb) => (
+              {filteredFeedbacks.map((fb) => (
                 <tr key={fb._id}>
                   <td>
                     {fb.userId?.name || fb.userId?.gmail || (typeof fb.userId === 'string' ? fb.userId : 'Unknown')}
@@ -285,7 +372,7 @@ const FeedbackList = () => {
                   <td>
                     <code style={{fontSize: '0.8rem'}}>
                       {fb.questionId && typeof fb.questionId === 'object' ? (
-                        <Link to={`/questions?editId=${fb.questionId._id}`} style={{ color: '#3498db', textDecoration: 'none', fontWeight: 'bold' }}>
+                        <Link to={`/questions/edit/${fb.questionId._id}`} style={{ color: '#3498db', textDecoration: 'none', fontWeight: 'bold' }}>
                           {fb.questionId.questionText?.en?.substring(0, 30) || 'Question'}...
                         </Link>
                       ) : (
@@ -363,6 +450,7 @@ const App = () => {
           <Route path="/users" element={<Users />} />
           <Route path="/feedback" element={<FeedbackList />} />
           <Route path="/questions" element={<Questions />} />
+          <Route path="/questions/edit/:id" element={<QuestionEditPage />} />
           <Route path="/settings" element={<div><h2>Admin Settings</h2><p>Coming Soon...</p></div>} />
         </Route>
       </Routes>
