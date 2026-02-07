@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { Plus, Edit, Trash2, Search, X, Save, ChevronDown, ChevronRight } from 'lucide-react';
 import { API_BASE_URL } from '../config';
@@ -67,6 +68,8 @@ const initialFormState = {
 };
 
 const Questions = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+
   // Data States
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
@@ -127,6 +130,27 @@ const Questions = () => {
     fetchSubjects();
   }, []);
 
+  useEffect(() => {
+    const editId = searchParams.get('editId');
+    if (editId && !showModal) {
+      const loadQuestion = async () => {
+        const existing = questions.find(q => q._id === editId);
+        if (existing) {
+          handleEdit(existing);
+          return;
+        }
+        try {
+          const res = await axios.get(`${API_BASE_URL}/questions/${editId}`);
+          const q = res.data.question || res.data;
+          handleEdit(q);
+        } catch (err) {
+          console.error("Failed to load question from URL", err);
+        }
+      };
+      loadQuestion();
+    }
+  }, [searchParams, questions, showModal]);
+
   // Fetch Units when Subject changes
   useEffect(() => {
     if (formData.subjectId) {
@@ -138,7 +162,12 @@ const Questions = () => {
 
   const fetchUnits = async (subjectId: string) => {
     try {
+      console.log('Fetching units for subject:', subjectId);
       const res = await axios.post(`${API_BASE_URL}/questions/subjects/units`, { subjectId });
+      console.log('Units fetched:', res.data.units?.length);
+      if (res.data.units?.length > 0) {
+        console.log('First unit ID:', res.data.units[0].unitId);
+      }
       setUnits(res.data.units || []);
     } catch (err) {
       console.error('Error fetching units:', err);
@@ -146,6 +175,13 @@ const Questions = () => {
   };
 
   // Handlers
+  const closeModal = () => {
+    setShowModal(false);
+    const newParams = new URLSearchParams(searchParams);
+    newParams.delete('editId');
+    setSearchParams(newParams);
+  };
+
   const handleDelete = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this question?')) return;
     try {
@@ -160,15 +196,30 @@ const Questions = () => {
 
   const handleEdit = (q: Question) => {
     setEditingId(q._id);
+    
+    // Helper to extract ID if field is populated object
+    const getid = (val: any) => {
+      if (!val) return '';
+      if (typeof val === 'object') {
+        const id = val._id || val.unitId || val.subjectId || val.id;
+        return id ? String(id) : '';
+      }
+      return String(val);
+    };
+
+    console.log('Editing Question:', q._id);
+    console.log('Raw UnitId:', q.unitId);
+    console.log('Processed UnitId:', getid(q.unitId));
+
     setFormData({
       questionNumber: q.questionNumber || 1,
       questionText: q.questionText || { en: '', hi: '' },
       options: q.options || initialFormState.options,
       correctOptionKey: q.correctOptionKey || 'A',
       explanation: q.explanation || { en: '', hi: '' },
-      subjectId: q.subjectId || '',
-      unitId: q.unitId || '',
-      chapterId: q.chapterId || '',
+      subjectId: getid(q.subjectId) || '',
+      unitId: getid(q.unitId) || '',
+      chapterId: getid(q.chapterId) || '',
       difficulty: q.difficulty || 'medium',
       status: q.status || 'active'
     });
@@ -212,7 +263,7 @@ const Questions = () => {
         toast.success('Question created successfully');
       }
       
-      setShowModal(false);
+      closeModal();
       fetchQuestions();
     } catch (err: any) {
       console.error('Error saving question:', err);
@@ -335,7 +386,7 @@ const Questions = () => {
           }}>
             <div className="modal-header" style={{ padding: '15px 20px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0 }}>{editingId ? 'Edit Question' : 'Add New Question'}</h3>
-              <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+              <button onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
                 <X size={24} />
               </button>
             </div>
@@ -435,6 +486,13 @@ const Questions = () => {
                   >
                     <option value="">Select Chapter</option>
                     {getAvailableChapters().map(c => <option key={c._id} value={c._id}>{c.name?.en || 'Chapter'}</option>)}
+                    
+                    {/* Preserved option for broken/missing chapter links */}
+                    {formData.chapterId && !getAvailableChapters().find(c => c._id === formData.chapterId) && (
+                      <option value={formData.chapterId}>
+                         {questions.find(q => q._id === editingId)?.chapterName || 'Unknown Chapter (Preserved)'} *
+                      </option>
+                    )}
                   </select>
                 </div>
               </div>
@@ -486,7 +544,7 @@ const Questions = () => {
             </div>
 
             <div className="modal-footer" style={{ padding: '15px 20px', borderTop: '1px solid #eee', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button className="btn" onClick={() => setShowModal(false)} disabled={formLoading}>Cancel</button>
+              <button className="btn" onClick={closeModal} disabled={formLoading}>Cancel</button>
               <button className="btn btn-primary" onClick={handleSave} disabled={formLoading}>
                 {formLoading ? 'Saving...' : 'Save Question'}
               </button>
@@ -504,6 +562,17 @@ const Questions = () => {
         .badge-hard { background: #ffebee; color: #e74c3c; }
         textarea, input[type="text"], select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
         .form-group label { display: block; margin-bottom: 5px; font-weight: 500; font-size: 0.9rem; }
+        
+        /* Grid Layouts */
+        .grid-2-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .grid-3-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        .flex-row-responsive { display: flex; align-items: center; gap: 10px; }
+        
+        @media (max-width: 768px) {
+          .grid-2-cols, .grid-3-cols { grid-template-columns: 1fr; }
+          .flex-row-responsive { flex-direction: column; align-items: stretch; }
+          .modal-content { width: 95%; height: 95vh; }
+        }
       `}</style>
     </div>
   );

@@ -284,7 +284,13 @@ const FeedbackList = () => {
                   </td>
                   <td>
                     <code style={{fontSize: '0.8rem'}}>
-                      {fb.questionId?.questionText?.en?.substring(0, 30) || fb.questionId?._id || fb.questionId || 'N/A'}...
+                      {fb.questionId && typeof fb.questionId === 'object' ? (
+                        <Link to={`/questions?editId=${fb.questionId._id}`} style={{ color: '#3498db', textDecoration: 'none', fontWeight: 'bold' }}>
+                          {fb.questionId.questionText?.en?.substring(0, 30) || 'Question'}...
+                        </Link>
+                      ) : (
+                        fb.questionId || 'N/A'
+                      )}
                     </code>
                   </td>
                   <td>{fb.feedback}</td>
@@ -326,15 +332,12 @@ const FeedbackList = () => {
 }
 
 const App = () => {
-  // Keep-alive mechanism: Hit backend /health endpoint every 14 minutes
-  // This prevents Render free tier from spinning down due to inactivity
+  // Keep-alive mechanism: Hit backend /help endpoint every 15 minutes
   useEffect(() => {
     const keepAlive = () => {
-      // Use /health endpoint which is designed for this purpose
-      axios.get(`${API_BASE_URL}/health`)
+      axios.get(`${API_BASE_URL}/help`)
         .then(() => console.log('Keep-alive ping successful'))
         .catch((err) => {
-          console.error('Keep-alive ping failed:', err);
           // Ignore errors for background ping
         });
     };
@@ -342,9 +345,8 @@ const App = () => {
     // Initial call
     keepAlive();
 
-    // Schedule every 14 minutes (14 * 60 * 1000)
-    // Render spins down after 15 mins of inactivity
-    const interval = setInterval(keepAlive, 14 * 60 * 1000);
+    // Schedule every 15 minutes
+    const interval = setInterval(keepAlive, 15 * 60 * 1000);
 
     return () => clearInterval(interval);
   }, []);
